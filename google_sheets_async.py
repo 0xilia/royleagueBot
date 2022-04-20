@@ -65,8 +65,8 @@ async def list_players(agcm: gspread_asyncio.AsyncioGspreadClientManager,
     sh = await agc.open("Royleague_S3_Tables_WIP")  # TODO same stuff there
     wks = await sh.worksheet(f"{league} {division}")
 
-    players = await wks.get_values('A4:A13', major_dimension='COLUMNS')
-    return players
+    standings = await wks.get_values('H4:P13', major_dimension='ROWS')
+    return standings
 
 
 if __name__ == "__main__":

@@ -9,6 +9,9 @@ import asyncio
 import google_sheets_async as gsa
 from gspread import WorksheetNotFound
 
+from collections import Counter
+from numpy import array_split
+
 
 description = '''ROYLEAGUE bot beta'''
 
@@ -134,7 +137,7 @@ async def _match(ctx, league: str, division: str, *raw_results):
         await msg.edit(content='Timed out', view=View())
 
 
-@royleague.command(name='list', aliases=['players'])
+@royleague.command(name='list', aliases=['standings'])
 async def _list(ctx, league: str, division: str,):
     leagues = ('NA', 'SA', 'EU', 'AS')
     divisions = ('CL', 'PL', 'D1', 'D2', 'D3', 'D4')
@@ -145,10 +148,28 @@ async def _list(ctx, league: str, division: str,):
         await ctx.send(f"Division: {division} not in {divisions}")
         return
     try:
-        players = await gsa.list_players(gsa.agcm_royleague, leag_up, div_up)
-        nl = '\n'
-        players_str = f'**{leag_up} {div_up}** Players:\n{nl.join(players[0])}'
-        await ctx.send(players_str)
+        standings = await gsa.list_players(gsa.agcm_royleague, leag_up, div_up)
+        formatted_table = f"**{leag_up} {div_up}** standings: "
+        p_num = sum(int(p[8]) > 0 for p in standings)
+
+        split_lengths = [len(l) for l in array_split([p[0] for p in standings if int(p[8]) > 0], 3)]
+        c = Counter(split_lengths)
+        colour = {'green':  sum(i for i, _ in c.most_common(1)), 'red': sum(i*j for i, j in c.most_common())}
+        colour['yellow'] = colour['red'] - colour['green']
+
+        formatted_table += "```diff"
+        for i, p in enumerate(standings, start=1):
+            if i > p_num:
+                break
+            elif i <= colour['green']:
+                formatted_table += f"\n+{i: >2}: GP: {p[1]: <2}|W: {p[2]: <2}|D: {p[3]: <2}|L: {p[4]: <2}|KD: {p[7]: <3}|PTS: {p[8]: <2}| {p[0]}{'```'+'```fix' if i == colour['green'] else ''}"
+            elif i <= colour['yellow']:
+                formatted_table += f"\n~{i: >2}: GP: {p[1]: <2}|W: {p[2]: <2}|D: {p[3]: <2}|L: {p[4]: <2}|KD: {p[7]: <3}|PTS: {p[8]: <2}| {p[0]}{'```'+'```diff' if i == colour['yellow'] else ''}"
+            elif i <= colour['red']:
+                formatted_table += f"\n-{i: >2}: GP: {p[1]: <2}|W: {p[2]: <2}|D: {p[3]: <2}|L: {p[4]: <2}|KD: {p[7]: <3}|PTS: {p[8]: <2}| {p[0]}"
+        formatted_table += "```"
+
+        await ctx.send(formatted_table)
     except WorksheetNotFound:
         await ctx.send(f"worksheet {league} {division} not found")
 
